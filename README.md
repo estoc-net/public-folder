@@ -12,8 +12,8 @@ and give all of it to a **relay** — typically the DIDComm mediator you
 already depend on. The relay can then answer anyone, any time, yet it
 cannot forge a byte: every answer traces back to your signature. The only
 misbehaviour left to it is withholding, or serving stale — the same trust
-you already extend to DNS, and bounded the same way, with a version and an
-expiry on the card.
+you already extend to DNS, and bounded the same way, by an expiry on the
+card.
 
 ## The trust contract is three pieces
 

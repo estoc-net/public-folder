@@ -79,7 +79,7 @@ against the owner's DID document.
 3. Reader verifies: card signature against `did`'s DID document → card's
    `root` names the first attachment → each directory node's entry names
    the next attachment → leaf bytes hash to the leaf CID. Freshness
-   (`expires`, `id` recency) is the reader's policy call.
+   (`expires`) is the reader's policy call.
 
 Queries are **anonymous and unauthorized by design**. The requester's
 DID is a mailbox, not an identity — it exists so the answer can be
@@ -97,10 +97,9 @@ problem-report.
 ## Basic walkthrough — publishing
 
 1. Owner sends `publish { card }`, optionally with object attachments.
-2. Relay verifies the card (signature; `id` strictly newer than the
-   stored card's; local publish policy — in the relay-inside-mediator
-   deployment, an existing mediation relationship) and replies
-   `publish-result { missing: [cid, …] }`.
+2. Relay verifies the card (signature; local publish policy — in the
+   relay-inside-mediator deployment, an existing mediation relationship)
+   and replies `publish-result { missing: [cid, …] }`.
 3. Owner re-sends `publish` with the same card and the missing objects
    as attachments; repeat until `missing` is empty. Unchanged subtrees
    are never re-sent — CIDs the relay already holds are never missing.
@@ -108,6 +107,14 @@ problem-report.
 
 `publish` is idempotent: re-sending the current card is not an error and
 returns whatever is still missing.
+
+The served version is simply **the most recent authenticated publish** —
+the relay never orders or interprets card `id`s, which are opaque author
+labels. Replaying a captured old publish envelope can therefore at worst
+reinstate an older card until the owner's next activity — the same
+staleness power the trust model already concedes to the relay, bounded
+by the card's `expires`. A relay MAY deduplicate DIDComm message ids
+within a bounded window as transport-level hardening.
 
 Storage is a **lease**: `publish-result` MAY carry `retain_until`, the
 relay's declaration of how long it commits to keeping the folder.
@@ -235,8 +242,6 @@ Standard report-problem 2.0 messages, `pthid` = the offending message's
 - `e.p.path.not-found` — no such path under the current root.
 - `e.p.card.invalid` — signature or structure of a published card does
   not verify.
-- `e.p.card.stale` — the published card's `id` is not strictly greater
-  than the stored one's.
 - `e.p.unauthorized` — sender may not publish for this `did` under the
   relay's policy. (Never used for `query`.)
 
@@ -245,15 +250,15 @@ Standard report-problem 2.0 messages, `pthid` = the offending message's
 - One `path` per query in 1.0; batching is a possible future addition.
 - The relay never interprets tree contents in this protocol; filename
   conventions (`_redirects`, `profile.json`) live entirely reader-side.
-- Freshness verification of an answered card (`expires`, `id` recency)
-  is reader policy; the relay serves the newest card it has, even past
-  `expires`.
+- Freshness verification of an answered card (`expires`) is reader
+  policy; the relay serves the most recently published card it has, even
+  past `expires`.
 
 ## Security and privacy
 
 - The relay cannot forge content: every answer is verifiable against the
   owner's signature. Its remaining powers are withholding and staleness,
-  bounded by `expires` and the monotonic `id`.
+  bounded by `expires`.
 - Readers are anonymous; `query` MAY be anoncrypted and sent from a
   one-time DID. Relays SHOULD rate-limit rather than authenticate.
 - Publishing MUST be gated (it consumes storage); the reference policy

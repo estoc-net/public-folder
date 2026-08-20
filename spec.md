@@ -96,10 +96,11 @@ All four fields are REQUIRED.
 
 - `did` — the owner. Signing the root alone would allow replaying one
   owner's tree under another's name; the card binds them.
-- `id` — a UUIDv7. Version ordering is plain lexicographic string
-  comparison (UUIDv7's leading timestamp makes lexicographic order
-  time order). There is no counter and no stored state; the vault is a
-  single writer and simply mints an id greater than its last.
+- `id` — an opaque version label chosen by the owner. The protocol
+  attaches no meaning to its contents and never orders ids; readers and
+  relays use it for equality only (naming a card, noticing it changed).
+  Estoc vaults happen to mint UUIDv7s, whose ids sort by time — that is
+  the author's own convention, invisible to the protocol.
 - `expires` — RFC 3339 timestamp; the DNS-TTL equivalent. A card past
   `expires` is *stale*, which bounds how long a withholding relay can
   keep serving yesterday's truth.
@@ -107,7 +108,10 @@ All four fields are REQUIRED.
 
 A `prev` field (hash-chaining to the previous card, KERI-style) is
 deliberately absent from 1.0; it is an additive field and may appear in a
-later version if auditable card history grows a real consumer.
+later version if auditable card history grows a real consumer. It is
+also the designated home for everything `id` deliberately does not do:
+detecting rollback across observations and ordering cards between
+relays.
 
 ### 3.2 Signature
 
@@ -118,11 +122,22 @@ verification-method id in the owner's DID document (`<did>#<key>`). The
 ### 3.3 Verification and freshness
 
 Signature verification proves exactly *who signed what*, nothing more.
-Whether a card is fresh enough — `expires` in the future, `id` newer than
-one seen elsewhere — is **reader policy**, evaluated by whoever holds the
-card. A relay, though, MUST enforce monotonicity at write time: reject
-any card whose `id` is not strictly greater than the stored card's for
-the same `did`.
+Whether a card is fresh enough — `expires` in the future — is **reader
+policy**, evaluated by whoever holds the card.
+
+Which card a relay serves is decided by the publish channel, not by any
+card field: publishing is authenticated (§4.2), and **the most recent
+authenticated publish wins**. The relay does not interpret `id` — the
+same restraint it applies to the tree. A captured old publish envelope
+replayed to the relay can therefore, at worst, reinstate an older card
+until the owner next publishes or renews — which is exactly the
+withholding/staleness power the trust model already concedes to the
+relay, bounded by `expires` and self-healing on the owner's next
+activity. A relay MAY harden against replay at the transport layer by
+deduplicating DIDComm message ids within a bounded window — a defence
+that reads no card field. Detecting rollback across observations, and
+ordering cards at all, is the job of the deferred `prev` chain (§3.1),
+not of `id`.
 
 ## 4. The relay
 
@@ -131,8 +146,7 @@ the same `did`.
 The relay protocol is exactly four verbs:
 
 1. **Verify a card and accept a push** — check the JWS against the
-   owner's DID document, check `id` monotonicity, apply local publish
-   policy.
+   owner's DID document, apply local publish policy.
 2. **Fill in objects by CID** — after accepting a card, request whatever
    objects it is missing; hash each received object to check it is the
    CID it claims. (This is structurally a git push: the relay is a bare
@@ -193,7 +207,8 @@ blobs are reclaimed).
   owner's behalf. Everything it serves *about* an owner traces to the
   owner's signed card.
 - Reading the published tree requires no authentication, ever.
-- The relay rejects stale cards (`id` not strictly newer).
+- The served version is the most recent authenticated publish; the
+  relay never orders or interprets card ids.
 - On its machine hostname the relay speaks machine formats only and
   never renders `text/html` (at most `Content-Disposition: attachment`);
   HTML rendering happens only on the isolated browse domain (§5.2).
@@ -258,7 +273,9 @@ service workers).
   bytes to links).
 - The exact CAR subset a relay serves (full IPIP-402 vs. minimal
   card+proof CAR).
-- When to add `prev` to the card (§3.1).
+- When to add `prev` to the card (§3.1) — now also the designated home
+  for rollback detection and cross-relay card ordering, which `id`
+  deliberately does not provide.
 - How an owner's DID document advertises the relay (existing
   `serviceEndpoint` vs. a dedicated `#content` service).
 - Rate limiting for anonymous reads — shared with the mediator's
