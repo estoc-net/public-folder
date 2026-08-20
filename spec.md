@@ -160,7 +160,34 @@ line: *a mediation relationship grants publish rights* — the
 DIDComm-authenticated sender is an existing mediation client, and the
 card's `did` is one of that client's DIDs.
 
-### 4.3 Invariants
+### 4.3 Storage and retention
+
+The relay is a cache of a projection, not an archive: the owner's vault
+remains the source of truth, so garbage-collecting an owner's data loses
+nothing that a single republish cannot restore (unchanged subtrees keep
+their CIDs, so even the bytes rarely travel again).
+
+Retention is therefore a **lease**. When accepting a publish, the relay
+MAY declare how long it commits to keeping the folder (`retain_until` in
+`publish-result`); re-publishing the current card — `publish` is
+idempotent — renews the lease. Past the lease the relay MAY drop the
+card and any objects no live card references. This is the relay's
+declaration, distinct in every way from the card's `expires`: `expires`
+is the *owner* telling *readers* when content goes stale, signed into
+the card; the lease is the *relay* telling the *owner* when storage may
+be reclaimed, unsigned and invisible to readers. Lease lengths SHOULD be
+far longer than typical `expires` values, so a folder spends a long time
+merely stale before it disappears.
+
+Two freedoms are left to local policy: a relay MAY extend the lease on
+any authenticated activity from the owner (in the relay-inside-mediator
+deployment, an ordinary pickup connection is signed activity — normally
+active owners then never refresh explicitly), and a relay MAY retain
+cards longer than objects when collecting (cards are a few hundred
+bytes; `card_only` queries and moved-away notices survive after heavy
+blobs are reclaimed).
+
+### 4.4 Invariants
 
 - The relay never holds owner keys and never signs anything on an
   owner's behalf. Everything it serves *about* an owner traces to the
@@ -236,3 +263,6 @@ service workers).
   `serviceEndpoint` vs. a dedicated `#content` service).
 - Rate limiting for anonymous reads — shared with the mediator's
   anonymous-forward problem, solved there.
+- Concrete lease and `expires` magnitudes (§4.3) — the intended shape is
+  expires on the order of weeks, leases on the order of a year, but real
+  numbers await deployment experience.

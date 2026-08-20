@@ -109,6 +109,15 @@ problem-report.
 `publish` is idempotent: re-sending the current card is not an error and
 returns whatever is still missing.
 
+Storage is a **lease**: `publish-result` MAY carry `retain_until`, the
+relay's declaration of how long it commits to keeping the folder.
+Because `publish` is idempotent, refreshing needs no extra message —
+re-sending the current card renews the lease. A relay MAY also extend
+the lease on any authenticated activity from the owner (local policy);
+the republish is merely the guaranteed method. Note this is unrelated to
+the card's `expires`, which is the owner's freshness declaration to
+readers.
+
 ## Message reference
 
 ### query
@@ -205,13 +214,17 @@ Sent by *relay*, `thid` = the publish's `id`.
   "id": "b0d1…",
   "thid": "77aa…",
   "body": {
-    "missing": ["bafkreid…", "baguqeerb…"]
+    "missing": ["bafkreid…", "baguqeerb…"],
+    "retain_until": "2027-08-20T00:00:00Z"
   }
 }
 ```
 
 - `missing` — CIDs reachable from the card's `root` that the relay does
   not yet hold. Empty array: the card is now the served version.
+- `retain_until` (OPTIONAL) — RFC 3339 timestamp: how long the relay
+  commits to storing the folder before it may garbage-collect.
+  Republishing renews it. Relays that never collect omit the field.
 
 ### Problem reports
 
