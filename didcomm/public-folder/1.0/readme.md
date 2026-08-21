@@ -374,5 +374,5 @@ IPFS trustless gateways (IPIP-402) for the proof-chain read shape.
 
 | Name / Link | Implementation notes |
 | --- | --- |
-| (planned) [didcomm-mediator](https://github.com/estoc-net/didcomm-mediator) | relay role, alongside coordinate-mediation/3.0 |
+| [didcomm-mediator](https://github.com/estoc-net/didcomm-mediator) | relay role, alongside coordinate-mediation/3.0 |
 | (planned) [@estoc/agent-core](https://github.com/estoc-net/estoc) | owner + reader roles; tree/card math in [@estoc/signed-dir](https://github.com/estoc-net/estoc/tree/main/packages/signed-dir) |
