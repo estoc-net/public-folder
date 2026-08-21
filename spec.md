@@ -165,7 +165,8 @@ conventions are client-side and require no relay change.
 Publishing rides DIDComm: the owner sends `publish { card }` to the
 relay's own DID, the relay answers with the CIDs it is missing, the owner
 supplies them; the card MUST NOT become the served version until every
-object under its root is present. Wire details are in
+object under its root is present, and completion is announced with a
+`published` receipt the owner can keep. Wire details are in
 [didcomm/public-folder/1.0](didcomm/public-folder/1.0/readme.md).
 
 Who may publish is local policy, out of scope for the wire protocol. The
@@ -181,25 +182,50 @@ remains the source of truth, so garbage-collecting an owner's data loses
 nothing that a single republish cannot restore (unchanged subtrees keep
 their CIDs, so even the bytes rarely travel again).
 
-Retention is therefore a **lease**. When accepting a publish, the relay
-MAY declare how long it commits to keeping the folder (`retain_until` in
-`publish-result`); re-publishing the current card — `publish` is
-idempotent — renews the lease. Past the lease the relay MAY drop the
-card and any objects no live card references. This is the relay's
-declaration, distinct in every way from the card's `expires`: `expires`
-is the *owner* telling *readers* when content goes stale, signed into
-the card; the lease is the *relay* telling the *owner* when storage may
-be reclaimed, unsigned and invisible to readers. Lease lengths SHOULD be
-far longer than typical `expires` values, so a folder spends a long time
-merely stale before it disappears.
+Retention is therefore a **lease**, and its unit is a completed
+**publication**: the current card plus every object reachable from its
+root, as one indivisible closure. When a publish completes, the relay
+MAY declare how long it commits to keeping that closure (`retain_until`
+in the `published` receipt); re-publishing the current card — `publish`
+is idempotent — renews the lease. A promise is only ever made about a
+completed publication: an in-flight publish gets `missing` lists, not
+retention promises.
 
-Two freedoms are left to local policy: a relay MAY extend the lease on
+While a lease lives, the closure MUST stay whole: the relay cannot keep
+the lease yet quietly reclaim some large file inside it — a tree with
+holes is worse than an absent one, because a reader cannot tell loss
+from selective withholding. Past the lease, the relay MAY drop the card
+and reclaim storage.
+
+The object store beneath is derived state, never a promise of its own:
+objects are content-addressed and shared — across versions, and across
+owners — so an object lives exactly as long as some live lease's
+closure references it (refcounting, not policy). Two consequences:
+
+- Publishing a new card ends the old version's protection immediately —
+  the relay serves only the current version and is not an archive.
+  Keeping newly-unreferenced objects anyway is a useful cache courtesy
+  (the next publish's `missing` list shrinks), never an obligation.
+- Objects staged for a publish that never completed carry no promise at
+  all, though a relay SHOULD hold them long enough for a multi-message
+  publish to finish.
+
+The lease is the relay's declaration, distinct in every way from the
+card's `expires`: `expires` is the *owner* telling *readers* when
+content goes stale, signed into the card; the lease is the *relay*
+telling the *owner* when storage may be reclaimed, unsigned and
+invisible to readers. Lease lengths SHOULD be far longer than typical
+`expires` values, so a folder spends a long time merely stale before it
+disappears.
+
+Two freedoms are left to local policy. A relay MAY extend the lease on
 any authenticated activity from the owner (in the relay-inside-mediator
 deployment, an ordinary pickup connection is signed activity — normally
-active owners then never refresh explicitly), and a relay MAY retain
-cards longer than objects when collecting (cards are a few hundred
-bytes; `card_only` queries and moved-away notices survive after heavy
-blobs are reclaimed).
+active owners then never refresh explicitly; a stored `retain_until` is
+then merely a lower bound). And once a lease has lapsed — never inside
+one — a relay MAY retain cards longer than objects (cards are a few
+hundred bytes; `card_only` queries and moved-away notices survive after
+heavy blobs are reclaimed).
 
 ### 4.4 Invariants
 

@@ -26,7 +26,8 @@ This protocol is how that folder is read and written over DIDComm:
   the card's signature and hashes each hop; the relay is trusted only to
   be online.
 - **Writing**: the owner sends `publish { card }`; the relay answers
-  with the CIDs it is missing; the owner supplies them.
+  with the CIDs it is missing; the owner supplies them and receives a
+  storable `published` receipt when the new version goes live.
 
 The folder encoding, card format, and relay invariants are specified in
 the [public-folder repository](https://github.com/estoc-net/public-folder);
@@ -98,15 +99,18 @@ problem-report.
 
 1. Owner sends `publish { card }`, optionally with object attachments.
 2. Relay verifies the card (signature; local publish policy — in the
-   relay-inside-mediator deployment, an existing mediation relationship)
-   and replies `publish-result { missing: [cid, …] }`.
+   relay-inside-mediator deployment, an existing mediation
+   relationship). While objects reachable from the card's root are
+   still missing, it replies `publish-result { missing: [cid, …] }`.
 3. Owner re-sends `publish` with the same card and the missing objects
-   as attachments; repeat until `missing` is empty. Unchanged subtrees
-   are never re-sent — CIDs the relay already holds are never missing.
-4. The relay serves the new card only once `missing` is empty.
+   as attachments; repeat. Unchanged subtrees are never re-sent — CIDs
+   the relay already holds are never missing.
+4. Once every object under the root is present, the relay replies
+   **`published`** instead: the card is now the served version, and the
+   receipt is worth keeping (see the message reference).
 
-`publish` is idempotent: re-sending the current card is not an error and
-returns whatever is still missing.
+`publish` is idempotent: re-sending the current card is not an error —
+it immediately yields a fresh `published`.
 
 The served version is simply **the most recent authenticated publish** —
 the relay never orders or interprets card `id`s, which are opaque author
@@ -116,14 +120,17 @@ staleness power the trust model already concedes to the relay, bounded
 by the card's `expires`. A relay MAY deduplicate DIDComm message ids
 within a bounded window as transport-level hardening.
 
-Storage is a **lease**: `publish-result` MAY carry `retain_until`, the
-relay's declaration of how long it commits to keeping the folder.
-Because `publish` is idempotent, refreshing needs no extra message —
-re-sending the current card renews the lease. A relay MAY also extend
-the lease on any authenticated activity from the owner (local policy);
-the republish is merely the guaranteed method. Note this is unrelated to
-the card's `expires`, which is the owner's freshness declaration to
-readers.
+Storage is a **lease**: `published` MAY carry `retain_until`, the
+relay's declaration of how long it commits to keeping the publication —
+the card and every object reachable from its root, as one unit (see
+spec §4.3; a promise is only ever made about a completed publication,
+which is why `publish-result` never carries it). Because `publish` is
+idempotent, refreshing needs no extra message — re-sending the current
+card renews the lease. A relay MAY also extend the lease on other
+authenticated activity from the owner (local policy), making a stored
+receipt a lower bound; the republish is merely the guaranteed method.
+Note this is unrelated to the card's `expires`, which is the owner's
+freshness declaration to readers.
 
 ## Message reference
 
@@ -213,7 +220,8 @@ Sent by *owner* to the relay's own DID.
 
 ### publish-result
 
-Sent by *relay*, `thid` = the publish's `id`.
+Sent by *relay*, `thid` = the publish's `id`, only while the publish is
+incomplete.
 
 ```json
 {
@@ -221,17 +229,48 @@ Sent by *relay*, `thid` = the publish's `id`.
   "id": "b0d1…",
   "thid": "77aa…",
   "body": {
-    "missing": ["bafkreid…", "baguqeerb…"],
-    "retain_until": "2027-08-20T00:00:00Z"
+    "missing": ["bafkreid…", "baguqeerb…"]
   }
 }
 ```
 
 - `missing` — CIDs reachable from the card's `root` that the relay does
-  not yet hold. Empty array: the card is now the served version.
-- `retain_until` (OPTIONAL) — RFC 3339 timestamp: how long the relay
-  commits to storing the folder before it may garbage-collect.
-  Republishing renews it. Relays that never collect omit the field.
+  not yet hold. Always non-empty: a complete publish is answered with
+  `published` instead.
+
+### published
+
+Sent by *relay*, `thid` = the publish's `id`, once every object under
+the card's root is present: the card is now the served version.
+
+```json
+{
+  "type": "https://didcomm.org/public-folder/1.0/published",
+  "id": "e42f…",
+  "thid": "77aa…",
+  "body": {
+    "did": "did:peer:2:…",
+    "card_id": "0198c5b2-7c3a-7d21-9f6a-2f4e8a1b0c3d",
+    "retain_until": "2027-08-20T00:00:00Z"
+  }
+}
+```
+
+This message is a **receipt, meant to be stored**: the owner's durable
+record of what went live where, and the input for scheduling a refresh.
+`did` and `card_id` echo the accepted card so the receipt stands on its
+own outside the thread (`card_id` is the author's own opaque label
+coming back — equality is exactly the use it is for).
+
+- `did`, `card_id` (REQUIRED) — the publication this receipt is for.
+- `retain_until` (OPTIONAL) — RFC 3339: how long the relay commits to
+  keeping the publication — card plus root closure, as one unit —
+  before it may garbage-collect. Republishing renews it; relays that
+  never collect omit the field.
+
+Authenticity is the authcrypt envelope. A relay-signed receipt body — a
+portable, third-party-verifiable proof of commitment — is a possible
+future addition with no consumer yet.
 
 ### Problem reports
 
