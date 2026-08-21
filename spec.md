@@ -175,6 +175,12 @@ line: *a mediation relationship grants publish rights* — the
 DIDComm-authenticated sender is an existing mediation client, and the
 card's `did` is one of that client's DIDs.
 
+A relay MAY refuse a publish at any round of the exchange (over-size,
+quota, other policy), reported as a problem-report. Refusal is cheap by
+construction: directory nodes carry recursive sizes (§2.2), so the root
+node — the first object pushed — already states the publication's total
+size, and a size limit is enforced before any content bytes travel.
+
 ### 4.3 Storage and retention
 
 The relay is a cache of a projection, not an archive: the owner's vault
@@ -226,6 +232,14 @@ then merely a lower bound). And once a lease has lapsed — never inside
 one — a relay MAY retain cards longer than objects (cards are a few
 hundred bytes; `card_only` queries and moved-away notices survive after
 heavy blobs are reclaimed).
+
+A relay that no longer wants to store a publication has one graceful
+exit: **stop renewing** — shorten or omit `retain_until` on the next
+`published` and let the lease lapse. There is deliberately no message
+for breaking a live lease: the lease is a commitment, and removal under
+force majeure (a legal takedown, a dying disk) is a broken promise the
+protocol does not dress up — readers simply see the folder gone, which
+is the honest signal.
 
 ### 4.4 Invariants
 
