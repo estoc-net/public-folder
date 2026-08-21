@@ -18,7 +18,9 @@ authors:
 
 A relay (typically a DIDComm mediator) holds, for each owner DID, a
 **root card** — `{did, id, expires, root}` signed by the owner — and the
-content-addressed objects of the folder tree the card's `root` names.
+content-addressed objects of the folder tree the card's `root` names
+(a card without `root` is a takedown: the DID currently publishes
+nothing).
 This protocol is how that folder is read and written over DIDComm:
 
 - **Reading**: anyone sends `query { did, path? }` to the relay and gets
@@ -136,6 +138,13 @@ problem-report.
 `publish` is idempotent: re-sending the current card is not an error —
 it immediately yields a fresh `published`.
 
+A card without `root` is a **takedown card** (spec §3.1): the owner's
+signed statement that this DID currently publishes nothing. Taking a
+folder down is the same exchange collapsed — nothing can be missing
+under an absent root, so a well-formed takedown skips `publish-result`
+rounds and is answered with `published` immediately; the previous
+version stops being served and loses its storage protection at once.
+
 The served version is simply **the most recent authenticated publish** —
 the relay never orders or interprets card `id`s, which are opaque author
 labels. Replaying a captured old publish envelope can therefore at worst
@@ -220,6 +229,13 @@ Sent by *relay*, `thid` = the query's `id`.
   limits, the relay degrades attachment by attachment from inline to
   links; the card is never elided.
 
+When the current card is a takedown (spec §3.1), every query — whatever
+its `path` — is answered with the card and no attachments: a signed
+"nothing is published" outranks an unsigned error, so
+`e.p.path.not-found` is only ever about paths missing under an existing
+root, and `e.p.did.unknown` only about DIDs the relay holds no card
+for.
+
 ### publish
 
 Sent by *owner* to the relay's own DID.
@@ -290,7 +306,9 @@ coming back — equality is exactly the use it is for).
 - `retain_until` (OPTIONAL) — RFC 3339: how long the relay commits to
   keeping the publication — card plus root closure, as one unit —
   before it may garbage-collect. Republishing renews it; relays that
-  never collect omit the field.
+  never collect omit the field. For a takedown card the closure is just
+  the card; when the owner stops renewing even that, the relay drops
+  the card and the DID converges to unknown.
 
 Authenticity is the authcrypt envelope. A relay-signed receipt body — a
 portable, third-party-verifiable proof of commitment — is a possible

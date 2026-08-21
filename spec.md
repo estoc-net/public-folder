@@ -12,7 +12,7 @@ The key words MUST, MUST NOT, SHOULD, MAY are to be interpreted as in RFC
 - **Tree** — the merkle encoding of the folder (§2). "Root" is its top
   CID.
 - **Root card** (or just **card**) — the owner's one signature over the
-  tree (§3).
+  tree (§3). A card naming no tree is a **takedown card** (§3.1).
 - **Relay** — a server that holds cards and objects and answers for
   owners (§4). Typically the owner's DIDComm mediator.
 - **Reader** — anyone fetching the folder; needs no relationship with the
@@ -92,7 +92,7 @@ object-exchange name, not a discovery mechanism.
 }
 ```
 
-All four fields are REQUIRED.
+`did`, `id`, and `expires` are REQUIRED; `root` is OPTIONAL.
 
 - `did` — the owner. Signing the root alone would allow replaying one
   owner's tree under another's name; the card binds them.
@@ -104,7 +104,15 @@ All four fields are REQUIRED.
 - `expires` — RFC 3339 timestamp; the DNS-TTL equivalent. A card past
   `expires` is *stale*, which bounds how long a withholding relay can
   keep serving yesterday's truth.
-- `root` — the tree's root CID (§2.2).
+- `root` — the tree's root CID (§2.2). A card without `root` is a
+  **takedown card**: the owner's signed statement that this DID
+  currently publishes nothing. Taking a folder down is therefore just
+  another publish, not a separate verb — which keeps the §4.4 invariant
+  whole: every state the relay serves, the gone state included, traces
+  to an owner signature. An unsigned "delete" message would have made
+  "gone" the one state a reader could not tell from relay withholding.
+  `expires` keeps its meaning: it bounds how long the relay can keep
+  asserting the owner's takedown as fresh.
 
 A `prev` field (hash-chaining to the previous card, KERI-style) is
 deliberately absent from 1.0; it is an additive field and may appear in a
@@ -175,6 +183,11 @@ line: *a mediation relationship grants publish rights* — the
 DIDComm-authenticated sender is an existing mediation client, and the
 card's `did` is one of that client's DIDs.
 
+Publishing a takedown card (§3.1) is the same exchange collapsed:
+nothing can be missing under an absent root, so a well-formed takedown
+is answered with `published` immediately and the previous version stops
+being served.
+
 A relay MAY refuse a publish at any round of the exchange (over-size,
 quota, other policy), reported as a problem-report. Refusal is cheap by
 construction: directory nodes carry recursive sizes (§2.2), so the root
@@ -241,6 +254,16 @@ force majeure (a legal takedown, a dying disk) is a broken promise the
 protocol does not dress up — readers simply see the folder gone, which
 is the honest signal.
 
+The **owner's** exit is symmetric and immediate: publish a takedown
+card (§3.1). As with any publish, the previous version's protection
+ends at once — the old closure's objects lose their references and MAY
+be reclaimed, which is exactly what a withdrawing owner wants. The
+takedown card is itself a completed publication whose closure is just
+the card, leased and renewed like any other (the card-only retention
+case in miniature). When the owner stops renewing even that, the relay
+drops the card and the DID converges to unknown — being forgotten needs
+no verb of its own.
+
 ### 4.4 Invariants
 
 - The relay never holds owner keys and never signs anything on an
@@ -271,7 +294,10 @@ On the relay's machine hostname:
 
 DID dereference to a tree root is a **303**, per the W3C DID Resolution
 HTTP binding — the relay knows DID → bucket from the publish
-relationship and needs to read no file to redirect.
+relationship and needs to read no file to redirect. When the current
+card is a takedown (§3.1) there is no root to redirect to: dereference
+answers **410 Gone**, while `/card/<did>` still serves the signed
+takedown so the gone state stays verifiable.
 
 ### 5.2 Browse domain
 
@@ -284,6 +310,8 @@ service workers).
   characters, safely under the 63-character DNS label limit that raw
   DIDs exceed. The relay records label → DID at publish time.
 - Path-form URLs 301-canonicalize to the subdomain form.
+- A DID whose current card is a takedown answers **410 Gone** across
+  its subdomain.
 - The apex SHOULD be submitted to the Public Suffix List so each
   subdomain is its own site.
 
