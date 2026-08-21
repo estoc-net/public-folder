@@ -72,7 +72,9 @@ feeds, post indexes) is a matter of client-side filename
 
 Draft. The design is settled; the relay and the DIDComm protocol are not
 yet implemented. Field-level details marked *provisional* in the spec may
-still move.
+still move. The DIDComm protocol document follows didcomm.org's
+submission format (status: Proposed) and has been checked against their
+CI rules; the registration PR goes in once the implementation lands.
 
 ## License
 

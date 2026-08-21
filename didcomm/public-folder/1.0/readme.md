@@ -3,7 +3,7 @@ title: Public Folder
 publisher: onyxblade
 license: Apache-2.0
 piuri: https://didcomm.org/public-folder/1.0
-status: Draft
+status: Proposed
 summary: Read and publish signed public folders through a relay. A reader asks a relay for an owner's folder content and receives the owner's signed root card plus a merkle proof chain, verifiable without any relationship to the owner or the relay; an owner pushes a new folder version to its relay with one signed card.
 tags:
   - public-folder
@@ -69,6 +69,30 @@ Underlying protocols: DIDComm v2. Errors use
 Verification requires the reader to compute CIDs (sha2-256; raw codec
 for files, dag-json for directory nodes) and verify a compact EdDSA JWS
 against the owner's DID document.
+
+## Connectivity
+
+Both exchanges are two-party request-response with the relay; reader
+and owner never talk to each other through this protocol. A requester
+may be an ephemeral DID with no resolvable endpoint, so requests SHOULD
+use the [return-route transport extension](https://github.com/decentralized-identity/didcomm-messaging/blob/main/extensions/return_route/main.md)
+(`return_route: "all"`) and relays MUST deliver responses over the same
+transport connection when they do — the same convention mediation
+protocols rely on.
+
+## States
+
+`query`/`answer` is stateless request-response: the relay keeps no
+per-query state; the *reader* moves `awaiting-answer` → `done` (a
+problem-report also ends the exchange).
+
+`publish` is a short-lived exchange per card. The *owner* moves
+`publishing` → `live` on `published`, staying in `publishing` through
+any number of `publish-result` rounds, or ends in `refused` on a
+problem-report. The *relay*, per owner DID, serves the previous
+publication until the new one completes — there is no intermediate
+externally visible state, and an abandoned publish leaves the served
+version untouched.
 
 ## Basic walkthrough — reading
 
