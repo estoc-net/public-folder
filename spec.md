@@ -92,7 +92,7 @@ object-exchange name, not a discovery mechanism.
 }
 ```
 
-`did`, `id`, and `expires` are REQUIRED; `root` is OPTIONAL.
+All four fields are REQUIRED; `root` is the only one that may be `null`.
 
 - `did` — the owner. Signing the root alone would allow replaying one
   owner's tree under another's name; the card binds them.
@@ -104,15 +104,20 @@ object-exchange name, not a discovery mechanism.
 - `expires` — RFC 3339 timestamp; the DNS-TTL equivalent. A card past
   `expires` is *stale*, which bounds how long a withholding relay can
   keep serving yesterday's truth.
-- `root` — the tree's root CID (§2.2). A card without `root` is a
-  **takedown card**: the owner's signed statement that this DID
-  currently publishes nothing. Taking a folder down is therefore just
-  another publish, not a separate verb — which keeps the §4.4 invariant
-  whole: every state the relay serves, the gone state included, traces
-  to an owner signature. An unsigned "delete" message would have made
-  "gone" the one state a reader could not tell from relay withholding.
-  `expires` keeps its meaning: it bounds how long the relay can keep
-  asserting the owner's takedown as fresh.
+- `root` — the tree's root CID (§2.2), or `null`. A card whose `root`
+  is `null` is a **takedown card**: the owner's signed statement that
+  this DID currently publishes nothing. Taking a folder down is
+  therefore just another publish, not a separate verb — which keeps the
+  §4.4 invariant whole: every state the relay serves, the gone state
+  included, traces to an owner signature. An unsigned "delete" message
+  would have made "gone" the one state a reader could not tell from
+  relay withholding. `expires` keeps its meaning: it bounds how long
+  the relay can keep asserting the owner's takedown as fresh.
+  `null` is the only takedown encoding — a card *missing* the `root`
+  field is malformed. A takedown is destructive, so it must be written
+  deliberately, never minted by a producer accidentally dropping a
+  field; the explicit tombstone follows the JSON idiom of RFC 7386
+  (`null` means removal) and DID Core's explicit `deactivated`.
 
 A `prev` field (hash-chaining to the previous card, KERI-style) is
 deliberately absent from 1.0; it is an additive field and may appear in a
@@ -184,7 +189,7 @@ DIDComm-authenticated sender is an existing mediation client, and the
 card's `did` is one of that client's DIDs.
 
 Publishing a takedown card (§3.1) is the same exchange collapsed:
-nothing can be missing under an absent root, so a well-formed takedown
+nothing can be missing under a null root, so a well-formed takedown
 is answered with `published` immediately and the previous version stops
 being served.
 

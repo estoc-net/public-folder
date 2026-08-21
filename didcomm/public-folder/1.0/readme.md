@@ -19,8 +19,8 @@ authors:
 A relay (typically a DIDComm mediator) holds, for each owner DID, a
 **root card** — `{did, id, expires, root}` signed by the owner — and the
 content-addressed objects of the folder tree the card's `root` names
-(a card without `root` is a takedown: the DID currently publishes
-nothing).
+(a card whose `root` is `null` is a takedown: the DID currently
+publishes nothing).
 This protocol is how that folder is read and written over DIDComm:
 
 - **Reading**: anyone sends `query { did, path? }` to the relay and gets
@@ -138,10 +138,12 @@ problem-report.
 `publish` is idempotent: re-sending the current card is not an error —
 it immediately yields a fresh `published`.
 
-A card without `root` is a **takedown card** (spec §3.1): the owner's
-signed statement that this DID currently publishes nothing. Taking a
-folder down is the same exchange collapsed — nothing can be missing
-under an absent root, so a well-formed takedown skips `publish-result`
+A card whose `root` is `null` is a **takedown card** (spec §3.1): the
+owner's signed statement that this DID currently publishes nothing (a
+card *missing* the field is malformed — takedown must be written
+deliberately). Taking a folder down is the same exchange collapsed —
+nothing can be missing under a null root, so a well-formed takedown
+skips `publish-result`
 rounds and is answered with `published` immediately; the previous
 version stops being served and loses its storage protection at once.
 
