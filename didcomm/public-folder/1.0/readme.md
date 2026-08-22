@@ -334,13 +334,16 @@ Standard report-problem 2.0 messages, `pthid` = the offending message's
   per-publication size limit.
 - `e.p.publish.quota` — the publication is acceptable in itself but
   exceeds this owner's storage allowance.
-- `e.p.publish.refused` — any other policy refusal; `comment` says why.
+- `e.p.publish.refused` — any other policy refusal. `comment` MAY say
+  why — and equally MAY be absent: some refusals, legal ones included,
+  are deliberately unexplained.
 
 The refusal codes are the counterpart of `e.p.unauthorized`: that one
 means "you may not publish at all", these mean "you may, but not this".
-Their `comment` SHOULD carry machine-readable numbers in `args`
-(`"Publication is {1} bytes; limit is {2}"`) so a client can show the
-reason and pre-check its next attempt.
+For `too-large` and `quota` the `comment` SHOULD carry machine-readable
+numbers in `args` (`"Publication is {1} bytes; limit is {2}"`) so a
+client can show the reason and pre-check its next attempt; `refused`
+promises no explanation.
 
 A relay MAY refuse at any round of the publish exchange — and can
 refuse early by construction: directory nodes carry recursive sizes, so

@@ -173,6 +173,13 @@ The relay protocol is exactly four verbs:
 The relay MUST NOT interpret the tree beyond verb 4. New filename
 conventions are client-side and require no relay change.
 
+Serving, like storing, is at the relay's discretion: a relay MAY
+refuse to store or to serve any card, object, or publication, at any
+time, as local policy — legal compliance included. Refusal needs no
+protocol surface: readers are trustless and already tolerate absence,
+and a refusal is deliberately indistinguishable from absence. §7
+sketches the intended uses.
+
 ### 4.2 Publishing
 
 Publishing rides DIDComm: the owner sends `publish { card }` to the
@@ -302,7 +309,7 @@ On the relay's machine hostname:
 - A relay SHOULD also offer proof-chain reads in CAR form
   (`?format=car`, IPIP-402 semantics): given a root and a path, one
   response carrying the card, the directory nodes along the path, and
-  the target file. The exact CAR subset is an open question (§7).
+  the target file. The exact CAR subset is an open question (§8).
 
 DID dereference to a tree root is a **303**, per the W3C DID Resolution
 HTTP binding — the relay knows DID → bucket from the publish
@@ -346,7 +353,58 @@ service workers).
   and replay-based sync are acknowledged prior art, borrowed as ideas
   only.
 
-## 7. Open questions
+## 7. Compliance considerations
+
+*This section is non-normative.* A relay that stores and serves other
+people's files is a content host in most jurisdictions, with the
+obligations that follow — illegal-content removal and reporting, court
+orders, evidence preservation. The protocol stays out of policy, but it
+must not make compliance impossible. This section is the map of how the
+pieces already fit; it imposes nothing.
+
+**Operator removal is not owner takedown.** The takedown card (§3.1) is
+the *owner's* protocol event: signed, verifiable, visible as 410. When
+the *operator* must remove content, no protocol event occurs — the
+relay simply stops serving (§4.1): reads see a generic 404 or
+`did.unknown`, further publishes are refused. The protocol deliberately
+offers no "removed by operator" signal: several reporting regimes
+forbid telling the publisher a report was made ("no tipping off"), and
+a distinguishable removed-state would leak exactly that. Where the
+operator may say more — a court order, a copyright notice — HTTP 451
+exists; the choice of status is the operator's, never the protocol's.
+Content addressing gives removal three natural granularities for free:
+a DID (everything by an owner), a card id (one publication), a single
+CID (one object, blocked across every closure that references it).
+
+**Preservation and serving are independent.** A legal preservation duty
+("keep the evidence for a year") binds the store, not the serve path: a
+relay can stop serving an object immediately while retaining its bytes
+past the lease for as long as its jurisdiction requires. The lease
+(§4.3) is the relay's promise to the *owner* about availability;
+preservation is the operator's duty to a *third party* about custody.
+Nothing couples them. Removal under legal compulsion is the broken
+lease §4.3 already declines to dress up.
+
+**No scanning hooks, by design.** The protocol defines no content
+inspection points and none should be added. Major jurisdictions do not
+require proactive monitoring from small hosts — the EU's DSA Article 8
+prohibits imposing a general monitoring obligation at all — and an
+operator who chooses to scan does so on their own store, invisibly to
+the protocol.
+
+**Serve policy is local, and closed is a valid default.** A public
+relay typically serves every published folder minus a blocklist; a
+personal relay may serve nothing but an allowlist — the same mechanism
+with the default inverted, and, like publish policy (§4.2), out of
+scope for the wire protocol. A relay serving a handful of allowlisted
+owners is arguably not offering a service to the public at all, which
+in several regimes is what triggers the heavier duties. The one knob
+that does not exist is reader-side restriction: reads carry no
+identity, ever (§6). Restricting *who can read* belongs to private
+DIDComm distribution or to infrastructure in front of the relay, not to
+this protocol.
+
+## 8. Open questions
 
 - Batch paths in one query, and the degradation rule when a proof chain
   exceeds message-size limits (today: attachments switch from inline
