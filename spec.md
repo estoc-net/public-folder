@@ -209,11 +209,18 @@ their CIDs, so even the bytes rarely travel again).
 Retention is therefore a **lease**, and its unit is a completed
 **publication**: the current card plus every object reachable from its
 root, as one indivisible closure. When a publish completes, the relay
-MAY declare how long it commits to keeping that closure (`retain_until`
+MUST declare how long it commits to keeping that closure (`retain_until`
 in the `published` receipt); re-publishing the current card — `publish`
 is idempotent — renews the lease. A promise is only ever made about a
 completed publication: an in-flight publish gets `missing` lists, not
 retention promises.
+
+The declaration is always a date, because a lease is bounded by
+definition — an absent field could mean either "kept forever" or "no
+commitment at all", and the owner could not tell the strongest promise
+from the weakest. Both extremes are expressible in-band instead: a
+relay that never intends to collect states a generous bound and keeps
+renewing; a relay committing to nothing states the present moment.
 
 While a lease lives, the closure MUST stay whole: the relay cannot keep
 the lease yet quietly reclaim some large file inside it — a tree with
@@ -252,7 +259,7 @@ hundred bytes; `card_only` queries and moved-away notices survive after
 heavy blobs are reclaimed).
 
 A relay that no longer wants to store a publication has one graceful
-exit: **stop renewing** — shorten or omit `retain_until` on the next
+exit: **stop renewing** — shorten `retain_until` on the next
 `published` and let the lease lapse. There is deliberately no message
 for breaking a live lease: the lease is a commitment, and removal under
 force majeure (a legal takedown, a dying disk) is a broken promise the

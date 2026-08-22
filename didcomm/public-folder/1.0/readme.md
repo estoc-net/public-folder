@@ -155,7 +155,7 @@ staleness power the trust model already concedes to the relay, bounded
 by the card's `expires`. A relay MAY deduplicate DIDComm message ids
 within a bounded window as transport-level hardening.
 
-Storage is a **lease**: `published` MAY carry `retain_until`, the
+Storage is a **lease**: `published` carries `retain_until`, the
 relay's declaration of how long it commits to keeping the publication —
 the card and every object reachable from its root, as one unit (see
 spec §4.3; a promise is only ever made about a completed publication,
@@ -305,12 +305,15 @@ own outside the thread (`card_id` is the author's own opaque label
 coming back — equality is exactly the use it is for).
 
 - `did`, `card_id` (REQUIRED) — the publication this receipt is for.
-- `retain_until` (OPTIONAL) — RFC 3339: how long the relay commits to
+- `retain_until` (REQUIRED) — RFC 3339: how long the relay commits to
   keeping the publication — card plus root closure, as one unit —
-  before it may garbage-collect. Republishing renews it; relays that
-  never collect omit the field. For a takedown card the closure is just
-  the card; when the owner stops renewing even that, the relay drops
-  the card and the DID converges to unknown.
+  before it may garbage-collect. Republishing renews it. Always a
+  date, never absent — an absent field could mean "forever" or "no
+  commitment", which the owner cannot tell apart; a relay that never
+  collects states a generous bound and renews, one committing to
+  nothing states the present moment. For a takedown card the closure
+  is just the card; when the owner stops renewing even that, the relay
+  drops the card and the DID converges to unknown.
 
 Authenticity is the authcrypt envelope. A relay-signed receipt body — a
 portable, third-party-verifiable proof of commitment — is a possible
